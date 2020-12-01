@@ -18,14 +18,14 @@ def run():
 
     model = build_model()
     BATCH_SIZE=32
-    EPOCHS=100
+    EPOCHS=30
     batches = train_states_x.shape[0]//BATCH_SIZE
 
     for e in range(EPOCHS):
         losses_sum = 0
 
         for i in tqdm(range(batches)):
-            start=i*BATCH_SIZE
+            start = i*BATCH_SIZE
             end = start + BATCH_SIZE
             loss = model.train_on_batch([train_states_x[start:end,:,1:], train_context_x[start:end]],
                                         train_states_y[start:end,:,1:3], return_dict=True)
