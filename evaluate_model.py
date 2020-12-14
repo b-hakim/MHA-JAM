@@ -6,7 +6,7 @@ import tensorflow.keras as k
 import numpy as np
 from tqdm import tqdm
 
-from data_loader import load_data
+from data_loader import load_data, load_map_batch
 from model import build_model, euclidean_distance_loss
 
 
@@ -43,20 +43,46 @@ def calculate_ade_fde(actual, predicted):
 
 
 def run():
-    val_states, val_context = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-trainval.txt", \
-                              "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val/"
+    mini = True
+
+    if not mini:
+        val_states, val_context, val_map = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-trainval.txt", \
+                                           "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-trainval/", \
+                                           "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_val_v1.0-trainval/"
+    else:
+        val_states, val_context, val_map = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-mini.txt", \
+                              "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-mini/", \
+                              "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_val_v1.0-mini/"
 
     val_states_x, val_states_y, val_context_x = load_data(val_states, val_context)
 
-    # model = build_model()
-    # model.load_weights()
     min_ade, min_fde = [100, -1], [100, -1]
-    # for i in range(100):
-    if True:
-        i = 20
-        model = k.models.load_model(f"model_iterations/model_mha_{i}.h5", custom_objects={'euclidean_distance_loss': euclidean_distance_loss})
+    BATCH_SIZE=4
+    batches = val_states_y.shape[0]//BATCH_SIZE
 
-        predictions = model.predict([val_states_x[:,:,1:], val_context_x[:]], verbose=1)
+    for i in range(0, 15):
+        model = k.models.load_model(f"model_iterations/model_mha_{i}.h5",
+                                    custom_objects={'euclidean_distance_loss': euclidean_distance_loss})
+        predictions = []
+
+        for b in range(batches):
+            start = b * BATCH_SIZE
+            end = start + BATCH_SIZE
+
+            if b == batches - 1:
+                end = len(val_states_x)
+
+            val_map_x = load_map_batch(val_map, start, end, 'val')
+
+            batch_predictions = model.predict([val_states_x[start:end, :, 1:],
+                                               val_context_x[start:end],
+                                               val_map_x], verbose=1)
+
+            if len(predictions) == 0:
+                predictions = batch_predictions
+            else:
+                predictions = np.concatenate([predictions, batch_predictions])
+
         ade, fde = calculate_ade_fde(val_states_y[:, :, 1:3], predictions.reshape(-1, 12, 2))
 
         if ade < min_ade[0]:
@@ -64,7 +90,7 @@ def run():
         if fde < min_fde[0]:
             min_fde = [fde, i]
 
-        print("Epoch", i, ":", ade, fde )
+        print("Epoch", i, ":", ade, fde)
         k.backend.clear_session()
         gc.collect()
         del model

@@ -19,9 +19,9 @@ def get_attention_head(query, context):
     keys = k.layers.Conv2D(64, (1,1))(context)
     values = k.layers.Conv2D(64, (1,1))(context)
     ## need to put scale = sqrt(d)
-    keys = k.layers.Reshape((50*50, 64))(keys)
+    keys = k.layers.Reshape((32*32, 64))(keys)
     # keys = k.layers.Permute((2, 1))(keys)
-    values = k.layers.Reshape((50*50, 64))(values)
+    values = k.layers.Reshape((32*32, 64))(values)
     query = k.layers.Reshape((1, 64))(query)
     combined = k.layers.Attention()([query, values, keys])
 
@@ -34,13 +34,25 @@ def get_attention_head(query, context):
     return combined
 
 
+def get_map_cnn_model(map_BGR):
+    x = k.layers.Conv2D(32, (3, 3), strides=(2, 2))(map_BGR)
+    x = k.layers.ZeroPadding2D((1,1))(x)
+    x = k.layers.Conv2D(32, (3, 3), strides=(2, 2))(x)
+    x = k.layers.ZeroPadding2D((1,1))(x)
+    x = k.layers.Conv2D(64, (3, 3), strides=(2, 2))(x)
+    x = k.layers.ZeroPadding2D((1,1))(x)
+    x = k.layers.Conv2D(64, (3, 3), strides=(2, 2))(x)
+    return x
+
 
 def build_model():
     ## input
     # k.backend.set_floatx('float16')
     L=1
     agent_state_inp = k.Input(shape=(8, 5))
-    agent_context_inp = k.Input(shape=(50, 50, 8, 5), dtype="float16")
+    agent_context_inp = k.Input(shape=(32, 32, 8, 5))
+    # agent_map_inp = k.Input(shape=(500,500,3))
+    agent_map_inp = k.Input(shape=(1024, 1024, 3), dtype="float16")
     ## input embedding
     embedding_layer = k.layers.Dense(64, activation='relu')
 
@@ -59,8 +71,19 @@ def build_model():
                     trajectory_encoder))(agent_context)
 
     ## add here map details
-    pass
+    map_features_extractor = k.applications.VGG19(
+        include_top=False,
+        weights="imagenet",
+        input_shape=(1024, 1024, 3)
+    )
 
+    for layer in map_features_extractor.layers:
+        layer.trainable = False
+
+    agent_map = map_features_extractor(agent_map_inp)
+    # agent_map = get_map_cnn_model(agent_map_inp)
+
+    agent_context_encoded = k.backend.concatenate([agent_map, agent_context_encoded])
     ## L Attention Heads
 
     outs = []
@@ -84,7 +107,7 @@ def build_model():
     # need to review the out location for this
     # outs.append(out_prob)
 
-    model = k.Model(inputs=[agent_state_inp, agent_context_inp], outputs=outs)
+    model = k.Model(inputs=[agent_state_inp, agent_context_inp, agent_map_inp], outputs=outs)
     model.summary()
     model.compile("adam", loss=euclidean_distance_loss)
     # tf.keras.utils.plot_model(
