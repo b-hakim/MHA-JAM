@@ -88,9 +88,10 @@ def build_model():
 
     outs = []
     # zls = []
-    # trajectory_decoder = k.layers.LSTM(128)
-    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
-    trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
+    trajectory_decoder_0 = k.layers.LSTM(128)
+    trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
+    # trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
+    # trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
 
     for i in range(L):
         attention_i_result = get_attention_head(agent_state_encoded, agent_context_encoded)
@@ -98,7 +99,9 @@ def build_model():
         z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
         # zls.append(z_l)
         # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
-        out_l = trajectory_decoder_0(z_l)
+        # out_l = trajectory_decoder_0(z_l)
+        # out_l = trajectory_decoder_1(out_l)
+        out_l = trajectory_decoder_0 (z_l)
         out_l = trajectory_decoder_1(out_l)
         outs.append(out_l)
 
@@ -110,13 +113,14 @@ def build_model():
     model = k.Model(inputs=[agent_state_inp, agent_context_inp, agent_map_inp], outputs=outs)
     model.summary()
     model.compile("adam", loss=euclidean_distance_loss)
-    # tf.keras.utils.plot_model(
-    #     model,
-    #     to_file='model.png',
-    #     show_shapes=True,
-    #     show_layer_names=True,
-    #     rankdir='TB',
-    #     expand_nested=False,
-    #     dpi=400
-    # )
+
+    k.utils.plot_model(
+        model,
+        to_file='model.png',
+        show_shapes=True,
+        show_layer_names=True,
+        rankdir='TB',
+        expand_nested=False,
+        dpi=400
+    )
     return model

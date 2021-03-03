@@ -43,12 +43,12 @@ def calculate_ade_fde(actual, predicted):
 
 
 def run():
-    mini = True
+    mini = False
 
     if not mini:
         val_states, val_context, val_map = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-trainval.txt", \
                                            "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-trainval/", \
-                                           "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_val_v1.0-trainval/"
+                                           "/media/bassel/Entertainment/maps_val_v1.0-trainval/"
     else:
         val_states, val_context, val_map = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-mini.txt", \
                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-mini/", \
@@ -60,7 +60,7 @@ def run():
     BATCH_SIZE=4
     batches = val_states_y.shape[0]//BATCH_SIZE
 
-    for i in range(0, 15):
+    for i in range(0, 30):
         model = k.models.load_model(f"model_iterations/model_mha_{i}.h5",
                                     custom_objects={'euclidean_distance_loss': euclidean_distance_loss})
         predictions = []
@@ -90,7 +90,7 @@ def run():
         if fde < min_fde[0]:
             min_fde = [fde, i]
 
-        print("Epoch", i, ":", ade, fde)
+        print("Model", i, ":", ade, fde)
         k.backend.clear_session()
         gc.collect()
         del model

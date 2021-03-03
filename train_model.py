@@ -8,15 +8,13 @@ def run():
     mini = False
 
     if not mini:
-        mode = "trainval"
         train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_v1.0-trainval.txt", \
                                                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_train_v1.0-trainval/", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_train_v1.0-trainval/", \
+                                                               "/media/bassel/Entertainment/maps_train_v1.0-trainval/", \
                                                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-trainval.txt", \
                                                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-trainval/", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_val_v1.0-trainval/"
+                                                               "/media/bassel/Entertainment/maps_val_v1.0-trainval/"
     else:
-        mode = "mini"
         train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_v1.0-mini.txt", \
                                                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_train_v1.0-mini/", \
                                                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_train_v1.0-mini", \
@@ -32,7 +30,7 @@ def run():
 
     model = build_model()
     BATCH_SIZE=8
-    EPOCHS=30
+    EPOCHS=10
     batches = train_states_x.shape[0]//BATCH_SIZE
 
     for e in range(EPOCHS):

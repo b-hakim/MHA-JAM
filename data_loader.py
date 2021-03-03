@@ -34,7 +34,11 @@ def load_data(states_filepath, context_filesdir):
     # agent_id, 20x(frame_id, x, y, v, a, yaw_rate)]
     agents_states = np.array([[float(x.rstrip()) for x in s.split(',')] for s in agents_states])
     contexts_files = glob.glob(context_filesdir+"*.npy")
+    for cf in contexts_files:
+        int(cf.split("__")[1].split(".txt")[0])
+
     keys = [int(cf.split("__")[1].split(".txt")[0])for cf in contexts_files]
+
     agents_context = np.zeros((len(keys), 32, 32, 8, 5), dtype='float16')
     contexts_files = list(zip(contexts_files, keys))
     contexts_files.sort(key=lambda x: x[1])
