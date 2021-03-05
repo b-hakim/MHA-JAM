@@ -1,39 +1,37 @@
 from tqdm import tqdm
 from data_loader import load_data, load_map_batch
 from evaluate_model import calculate_ade_fde
-from model import build_model
+from model import build_model_mha_jam, build_model_mha_sam
+from enum import Enum
 
 
-def run():
-    mini = False
+class MODEL_TYPE(Enum):
+    MHA_JAM = 0
+    MHA_SAM = 1
 
-    if not mini:
-        train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_v1.0-trainval.txt", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_train_v1.0-trainval/", \
-                                                               "/media/bassel/Entertainment/maps_train_v1.0-trainval/", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-trainval.txt", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-trainval/", \
-                                                               "/media/bassel/Entertainment/maps_val_v1.0-trainval/"
-    else:
-        train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_v1.0-mini.txt", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_train_v1.0-mini/", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_train_v1.0-mini", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-mini.txt", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-mini/", \
-                                                               "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_val_v1.0-mini/"
 
-    # train_agents_ids_dict_path = "/media/bassel/Future/Study/Ph.D/Courses/CISC873/nuscenes-devkit/dicts_sample_and_instances_id2token_train.json"
+def run(pdd, mode, model_type=MODEL_TYPE.MHA_JAM):
+    train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = pdd + "states_train_" + mode + ".txt", \
+                                                                                       pdd + "context_train_" + mode + "/", \
+                                                                                       pdd + "maps_train_" + mode + "/", \
+                                                                                       pdd + "states_val_" + mode + ".txt", \
+                                                                                       pdd + "context_val_" + mode + "/", \
+                                                                                       pdd + "maps_val_" + mode + "/"
+
     train_states_x, train_states_y, train_context_x = load_data(train_states, train_context)
 
-    # val_agents_ids_dict_path = "/media/bassel/Future/Study/Ph.D/Courses/CISC873/nuscenes-devkit/dicts_sample_and_instances_id2token_val.json"
-    # val_states_x, val_states_y, val_context_x, val_map_x = load_data(val_states, val_context, val_map)
+    if model_type.value == MODEL_TYPE.MHA_JAM.value:
+        model = build_model_mha_jam()
+    else:
+        model = build_model_mha_sam()
 
-    model = build_model()
-    BATCH_SIZE=8
-    EPOCHS=10
+    model.load_weights("model_iterations/model_mha_9.h5")
+
+    BATCH_SIZE=4
+    EPOCHS=110
     batches = train_states_x.shape[0]//BATCH_SIZE
 
-    for e in range(EPOCHS):
+    for e in range(10,EPOCHS):
         losses_sum = 0
 
         for i in tqdm(range(batches)):
@@ -65,4 +63,9 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    mode = "v1.0-trainval"
+    # mode = "v1.0-mini"
+    model_type = MODEL_TYPE.MHA_JAM
+    preprocessed_dataset_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
+
+    run(preprocessed_dataset_dir, mode, model_type)
