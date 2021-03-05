@@ -1,5 +1,6 @@
 import gc
 import math
+import os
 
 import scipy
 import tensorflow.keras as k
@@ -7,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from data_loader import load_data, load_map_batch
-from model import build_model, euclidean_distance_loss
+from model import euclidean_distance_loss
 
 
 # def distance_metrics(gt, preds):
@@ -42,25 +43,18 @@ def calculate_ade_fde(actual, predicted):
 
 
 
-def run():
-    mini = False
-
-    if not mini:
-        val_states, val_context, val_map = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-trainval.txt", \
-                                           "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-trainval/", \
-                                           "/media/bassel/Entertainment/maps_val_v1.0-trainval/"
-    else:
-        val_states, val_context, val_map = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_v1.0-mini.txt", \
-                              "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_v1.0-mini/", \
-                              "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/maps_val_v1.0-mini/"
+def run(pdd, mode):
+    val_states, val_context, val_map = os.path.join(pdd, "states_val_"+mode+".txt"), \
+                                       os.path.join(pdd, "context_val_"+mode+"/"), \
+                                       os.path.join(pdd, "maps_val_"+mode+"/")
 
     val_states_x, val_states_y, val_context_x = load_data(val_states, val_context)
 
     min_ade, min_fde = [100, -1], [100, -1]
-    BATCH_SIZE=4
+    BATCH_SIZE=8
     batches = val_states_y.shape[0]//BATCH_SIZE
 
-    for i in range(0, 30):
+    for i in range(9, 102):
         model = k.models.load_model(f"model_iterations/model_mha_{i}.h5",
                                     custom_objects={'euclidean_distance_loss': euclidean_distance_loss})
         predictions = []
@@ -97,8 +91,12 @@ def run():
 
     print(min_ade, min_fde)
 
-        # print(model.evaluate([val_states_x[start:end,:,1:], val_context_x[start:end]],
-        #                val_states_y[start:end,:,1:3],))
+    # print(model.evaluate([val_states_x[start:end,:,1:], val_context_x[start:end]],
+    #                val_states_y[start:end,:,1:3],))
 
 if __name__ == '__main__':
-    run()
+    mode = "v1.0-trainval"
+    # mode = "v1.0-mini"
+    preprocessed_dataset_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup"
+
+    run(preprocessed_dataset_dir, mode)
