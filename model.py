@@ -1,6 +1,8 @@
 import tensorflow.keras as k
 
 
+trajectory_size=28
+
 ## Input: agent_state, context_states, map
 # Part1: encode agent_state, encode context_states, cnn for map
 # part2: concatenate map and context states
@@ -45,12 +47,12 @@ def get_map_cnn_model(map_BGR):
     return x
 
 
-def build_model():
+def build_model_mha_jam():
     ## input
     # k.backend.set_floatx('float16')
     L=1
-    agent_state_inp = k.Input(shape=(8, 5))
-    agent_context_inp = k.Input(shape=(32, 32, 8, 5))
+    agent_state_inp = k.Input(shape=(trajectory_size, 5))
+    agent_context_inp = k.Input(shape=(32, 32, trajectory_size, 5))
     # agent_map_inp = k.Input(shape=(500,500,3))
     agent_map_inp = k.Input(shape=(1024, 1024, 3), dtype="float16")
     ## input embedding
@@ -88,10 +90,10 @@ def build_model():
 
     outs = []
     # zls = []
-    trajectory_decoder_0 = k.layers.LSTM(128)
-    trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
-    # trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
-    # trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
+    # trajectory_decoder_0 = k.layers.LSTM(1trajectory_size)
+    # trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
+    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
+    trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
 
     for i in range(L):
         attention_i_result = get_attention_head(agent_state_encoded, agent_context_encoded)
@@ -99,8 +101,6 @@ def build_model():
         z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
         # zls.append(z_l)
         # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
-        # out_l = trajectory_decoder_0(z_l)
-        # out_l = trajectory_decoder_1(out_l)
         out_l = trajectory_decoder_0 (z_l)
         out_l = trajectory_decoder_1(out_l)
         outs.append(out_l)
@@ -114,13 +114,95 @@ def build_model():
     model.summary()
     model.compile("adam", loss=euclidean_distance_loss)
 
-    k.utils.plot_model(
-        model,
-        to_file='model.png',
-        show_shapes=True,
-        show_layer_names=True,
-        rankdir='TB',
-        expand_nested=False,
-        dpi=400
+    # k.utils.plot_model(
+    #     model,
+    #     to_file='model.png',
+    #     show_shapes=True,
+    #     show_layer_names=True,
+    #     rankdir='TB',
+    #     expand_nested=False,
+    #     dpi=400
+    # )
+    return model
+
+
+def build_model_mha_sam():
+    ## input
+    # k.backend.set_floatx('float16')
+    L=1
+    agent_state_inp = k.Input(shape=(trajectory_size, 5))
+    agent_context_inp = k.Input(shape=(32, 32, trajectory_size, 5))
+    # agent_map_inp = k.Input(shape=(500,500,3))
+    agent_map_inp = k.Input(shape=(1024, 1024, 3), dtype="float16")
+    ## input embedding
+    embedding_layer = k.layers.Dense(64, activation='relu')
+
+    agent_state = k.layers.TimeDistributed(embedding_layer)(agent_state_inp)
+    agent_context = k.layers.TimeDistributed(
+            k.layers.TimeDistributed(
+                    k.layers.TimeDistributed(
+                            embedding_layer)))(agent_context_inp)
+
+    ## input encoding
+    trajectory_encoder = k.layers.LSTM(64)
+
+    agent_state_encoded = trajectory_encoder(agent_state)
+    agent_context_encoded = k.layers.TimeDistributed(
+            k.layers.TimeDistributed(
+                    trajectory_encoder))(agent_context)
+
+    ## add here map details
+    map_features_extractor = k.applications.VGG19(
+        include_top=False,
+        weights="imagenet",
+        input_shape=(1024, 1024, 3)
     )
+
+    for layer in map_features_extractor.layers:
+        layer.trainable = False
+
+    agent_map = map_features_extractor(agent_map_inp)
+    # agent_map = get_map_cnn_model(agent_map_inp)
+
+    # agent_context_encoded = k.backend.concatenate([agent_map, agent_context_encoded])
+    ## L Attention Heads
+
+    outs = []
+    # zls = []
+    # trajectory_decoder_0 = k.layers.LSTM(1trajectory_size)
+    # trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
+    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
+    trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
+
+    for i in range(L):
+        attention_i_result_static = get_attention_head(agent_map, agent_context_encoded)
+        attention_i_result_dynamic = get_attention_head(agent_state_encoded, agent_context_encoded)
+        attention_i_result = k.backend.concatenate([attention_i_result_static, attention_i_result_dynamic])
+
+        # can be axis 0 if 0 is not for batch .. need checking
+        z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
+        # zls.append(z_l)
+        # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
+        out_l = trajectory_decoder_0 (z_l)
+        out_l = trajectory_decoder_1(out_l)
+        outs.append(out_l)
+
+    # x = k.layers.Dense(200)(tf.concat(zls, axis=0))
+    # out_prob = k.layers.Dense(L, activation='softmax')(x)
+    # need to review the out location for this
+    # outs.append(out_prob)
+
+    model = k.Model(inputs=[agent_state_inp, agent_context_inp, agent_map_inp], outputs=outs)
+    model.summary()
+    model.compile("adam", loss=euclidean_distance_loss)
+
+    # k.utils.plot_model(
+    #     model,
+    #     to_file='model.png',
+    #     show_shapes=True,
+    #     show_layer_names=True,
+    #     rankdir='TB',
+    #     expand_nested=False,
+    #     dpi=400
+    # )
     return model
