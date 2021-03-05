@@ -1,0 +1,6 @@
+tqdm
+numpy
+opencv-python
+tensorflow-gpu
+scipy
+nuscenes-devkit
