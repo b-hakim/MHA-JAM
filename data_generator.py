@@ -31,7 +31,7 @@ class NuScenesFormatTransformer:
         sample_id = 0
         instance_id = 0
 
-        for current_sample in samples_agents:
+        for current_sample in tqdm(samples_agents):
             instance_token, sample_token = current_sample.split("_")
             scene_token = self.nuscenes.get('sample', sample_token)["scene_token"]
 
@@ -98,7 +98,7 @@ class NuScenesFormatTransformer:
 
             # //////////////////////
             future_samples = self.helper.get_future_for_agent(instance_token, sample_token, 6, True, False)
-            past_samples = self.helper.get_past_for_agent(instance_token, sample_token, 1000, True, False)[::-1]
+            past_samples = self.helper.get_past_for_agent(instance_token, sample_token, 1000, True, False)[:MAX_TRAJ_LEN-1][::-1]
 
             current_sample = self.helper.get_sample_annotation(instance_token, sample_token)
             assert len(past_samples) >= 1
@@ -115,7 +115,7 @@ class NuScenesFormatTransformer:
             # get_trajectory at this position
             center_pos = len(past_samples)
             future_samples_local = self.helper.get_future_for_agent(instance_token, sample_token, 6, True, True)
-            past_samples_local = self.helper.get_past_for_agent(instance_token, sample_token, 1000, True, True)[::-1]
+            past_samples_local = self.helper.get_past_for_agent(instance_token, sample_token, 1000, True, True)[:MAX_TRAJ_LEN-1][::-1]
             # current_sample = self.helper.get_sample_annotation(instance_token, sample_token)
             assert len(future_samples_local) == 12
 
@@ -136,7 +136,7 @@ class NuScenesFormatTransformer:
             len_future_samples = len(future_samples)
             del trajectory_, trajectory_tokens, past_samples, future_samples, past_samples_local, future_samples_local
 
-            curr_sample = self.helper.get_past_for_agent(instance_token, sample_token, 1000, False, False)[-1]
+            curr_sample = self.helper.get_past_for_agent(instance_token, sample_token, 1000, False, False)[:MAX_TRAJ_LEN][-1]
 
             for i in range(trajectory.shape[0]):
                 # instance_id, sample_id, x, y, velocity, acc, yaw
@@ -164,7 +164,7 @@ class NuScenesFormatTransformer:
                     curr_sample = self.helper.get_sample_annotation(instance_token, next_sample_token)
 
             s = str(instance_id) + ","
-            assert (MAX_TRAJ_LEN+len_future_samples) >= trajectory.shape[0]
+            # assert (MAX_TRAJ_LEN+len_future_samples) >= trajectory.shape[0]
             repeat = (MAX_TRAJ_LEN+len_future_samples)-trajectory.shape[0]
             leading_arr = np.array(repeat * [-1, -64, -64, -64, -64, -64]).reshape((repeat, 6))
             trajectory = np.append(leading_arr, trajectory, axis=0)
@@ -209,7 +209,7 @@ class NuScenesFormatTransformer:
 
         for agent in tqdm(agents_states):
             instance_token = instance_dict_id_token[str(int(agent[0]))]
-            mid_frame_id = int(agent[1 + 6 * 7])
+            mid_frame_id = int(agent[1 + 6 * (MAX_TRAJ_LEN-1)])
             sample_token = sample_dict_id_token[str(mid_frame_id)]
             frame_annotations = self.helper.get_annotations_for_sample(sample_token)
             surroundings_agents_coords = []
@@ -379,14 +379,14 @@ class NuScenesFormatTransformer:
 
         for agent in tqdm(agents_states):
             instance_token = instance_dict_id_token[str(int(agent[0]))]
-            mid_frame_id = int(agent[1 + 6 * 7])
+            mid_frame_id = int(agent[1 + 6 * (MAX_TRAJ_LEN)])
             sample_token = sample_dict_id_token[str(mid_frame_id)]
             img = mtp_input_representation.make_input_representation(instance_token, sample_token)
             # img = cv2.resize(img, (1024, 1024))
             cv2.imwrite(out_file.replace("_.jpg", "__" + str(agent_ind) + ".jpg"), img)
             agent_ind += 1
 
-    def run(self):
+    def run(self, out_dir):
         if self.dataset_version.find("mini") != -1:
             train_agents = get_prediction_challenge_split("mini_train", dataroot=self.DATAROOT)
             val_agents = get_prediction_challenge_split("mini_val", dataroot=self.DATAROOT)
@@ -394,6 +394,8 @@ class NuScenesFormatTransformer:
             train_agents = get_prediction_challenge_split("train", dataroot=self.DATAROOT)
             train_agents.extend(get_prediction_challenge_split("train_val", dataroot=self.DATAROOT))
             val_agents = get_prediction_challenge_split("val", dataroot=self.DATAROOT)
+
+        ## Statistics
         # mx =-1
         # for  in train_agents:
         #     instance_token, sample_token = current_sample.split("_")
@@ -408,58 +410,28 @@ class NuScenesFormatTransformer:
         # print("max length of the past sequence for val is:",mx)
         # return
 
-        self.get_format_mha_jam(train_agents,
-                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_" + self.dataset_version + ".txt")
-        # self.get_format_mha_jam_context(
-        #     "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_" + self.dataset_version + ".txt",
-        #     "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_train_" + self.dataset_version + "/context_train_.txt")
+        self.get_format_mha_jam(train_agents, out_dir + "states_train_" + self.dataset_version + ".txt")
+        self.get_format_mha_jam_context(
+            out_dir+"states_train_" + self.dataset_version + ".txt",
+            out_dir+"context_train_" + self.dataset_version + "/context_train_.txt")
         # self.get_format_mha_jam_maps(
-        #     "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_train_" + self.dataset_version + ".txt",
-        #     "/media/bassel/Entertainment/maps_train_" + self.dataset_version + "/maps_train_.jpg")
-
+        #     out_dir+"states_train_" + self.dataset_version + ".txt",
+        #     out_dir+"maps_train_" + self.dataset_version + "/maps_train_.jpg")
+        # 25
         self.get_format_mha_jam(val_agents,
-                                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_" + self.dataset_version + ".txt")
-        # self.get_format_mha_jam_context(
-        #     "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_" + self.dataset_version + ".txt",
-        #     "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/context_val_" + self.dataset_version + "/context_val_.txt")
+                                out_dir+"states_val_" + self.dataset_version + ".txt")
+        self.get_format_mha_jam_context(
+            out_dir+"states_val_" + self.dataset_version + ".txt",
+            out_dir+"context_val_" + self.dataset_version + "/context_val_.txt")
         # self.get_format_mha_jam_maps(
-        #     "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/states_val_" + self.dataset_version + ".txt",
-        #     "/media/bassel/Entertainment/maps_val_" + self.dataset_version + "/maps_val_.jpg")
+        #     out_dir+"states_val_" + self.dataset_version + ".txt",
+        #     out_dir+"maps_val_" + self.dataset_version + "/maps_val_.jpg")
 
 if __name__ == '__main__':
+    mode = "v1.0-trainval"
+    # mode = "v1.0-mini"
+    dataset_dir = '/media/bassel/Entertainment/nuscenes/'
+    out_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
 
-    # copy = True # Is not needed anymore
-    copy = False
-    # mini = True
-    mini = False
-    base_name = "states"
-
-    if copy:
-        if mini:
-            shutil.copy(
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/" + base_name + "_train_v1.0-mini.txt",
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/train/" + base_name + "_train.txt")
-            shutil.copy(
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/" + base_name + "_val_v1.0-mini.txt",
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/val/" + base_name + "_val.txt")
-            shutil.copy(
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/" + base_name + "_val_v1.0-mini.txt",
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/test/" + base_name + "_val.txt")
-        else:
-            shutil.copy(
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/" + base_name + "_train_v1.0-trainval.txt",
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/train/" + base_name + "_train.txt")
-            shutil.copy(
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/" + base_name + "_val_v1.0-trainval.txt",
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/val/" + base_name + "_val.txt")
-            shutil.copy(
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/" + base_name + "_val_v1.0-trainval.txt",
-                "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/test/" + base_name + "_val.txt")
-    else:
-        if not mini:
-            n = NuScenesFormatTransformer('/media/bassel/Entertainment/nuscenes/',
-                                          'v1.0-trainval')
-        else:
-            n = NuScenesFormatTransformer('/media/bassel/Entertainment/nuscenes/',
-                                          'v1.0-mini')
-        n.run()
+    n = NuScenesFormatTransformer(dataset_dir, mode)
+    n.run(out_dir)
