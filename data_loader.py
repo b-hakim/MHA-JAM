@@ -33,7 +33,7 @@ def load_data(states_filepath, context_filesdir):
     ########################################################################
     # Context
     # format
-    # agent_id, 20x(frame_id, x, y, v, a, yaw_rate)]
+    # agent_id, 28x(frame_id, x, y, v, a, yaw_rate)]
     agents_states = np.array([[float(x.rstrip()) for x in s.split(',')] for s in agents_states])
     # agents_states = agents_states.reshape(agents_states.shape)
     contexts_files = glob.glob(context_filesdir+"*.npy")

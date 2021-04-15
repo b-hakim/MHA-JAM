@@ -1,5 +1,6 @@
 import tensorflow.keras as k
-
+import numpy as np
+from tensorflow.keras.optimizers import SGD, Adam
 
 trajectory_size=28
 
@@ -16,6 +17,62 @@ def euclidean_distance_loss(y_true, y_pred):
     sq_sum = k.backend.sum(sq, axis=-1)
     return k.backend.sqrt(sq_sum)
 
+# https://gist.github.com/sergeyprokudin/4a50bf9b75e0559c1fcd2cae860b879e
+##https://stats.stackexchange.com/questions/319954/whats-the-difference-between-multivariate-gaussian-and-mixture-of-gaussians
+## https://stats.stackexchange.com/questions/478625/log-likelihood-of-normal-distribution-why-the-term-fracn2-log2-pi-sigma
+def gaussian_nll(ytrue, ypreds):
+    """Keras implmementation of multivariate Gaussian negative loglikelihood loss function.
+    This implementation implies diagonal covariance matrix.
+
+    Parameters
+    ----------
+    ytrue: tf.tensor of shape [n_samples, n_dims]
+        ground truth values
+    ypreds: tf.tensor of shape [n_samples, n_dims*2]
+        predicted mu and logsigma values (e.g. by your neural network)
+
+    Returns
+    -------
+    neg_log_likelihood: float
+        negative loglikelihood averaged over samples
+
+    This loss can then be used as a target loss for any keras model, e.g.:
+        model.compile(loss=gaussian_nll, optimizer='Adam')
+
+    """
+    # k.backend.print_tensor("before y true[0,0,:]:", ytrue[0, 0])
+    # k.backend.print_tensor("before y true[0,1,:]::", ytrue[0, 1])
+    # k.backend.print_tensor("before y pred[0,0,:]::", ypreds[0, 0])
+    # k.backend.print_tensor("before y pred[0,1,:]::", ypreds[0, 1])
+
+    ytrue = k.backend.reshape(ytrue, (-1, 24))
+
+    ypreds = k.backend.reshape(ypreds, (-1, 48))
+
+    # k.backend.print_tensor("after y true[0,0,:]:", ytrue[0, 0:2])
+    # k.backend.print_tensor("after y true[0,1,:]::", ytrue[0, 2:4])
+    # k.backend.print_tensor("after y pred[0,0,:]::", ypreds[0, 0:2])
+    # k.backend.print_tensor("after y pred[0,1,:]::", ypreds[0, 2:4])
+    #
+    # k.backend.print_tensor("y true[0,0,:]:", ytrue[0, 0])
+    # k.backend.print_tensor("y true[0,1,:]::", ytrue[0, 1])
+    # k.backend.print_tensor("y pred[0,0,:]::", ypreds[0, 0])
+    # k.backend.print_tensor("y pred[0,1,:]::", ypreds[0, 1])
+
+    n_dims = int(ypreds.shape[1] / 2)
+    # mu = ypreds[:, 0:n_dims]
+    mu = ypreds[:, 0::2] # 24 u --> 12 for x and 12 for y
+    # logsigma = ypreds[:, n_dims:]
+    logsigma = ypreds[:, 1::2]
+
+    mse = -0.5 * k.backend.sum(k.backend.square((ytrue - mu) / k.backend.exp(logsigma)), axis=1)
+
+    sigma_trace = -k.backend.sum(logsigma, axis=1)
+    log2pi = -0.5 * n_dims * np.log(2 * np.pi)
+
+    log_likelihood = mse + sigma_trace + log2pi
+
+    return k.backend.mean(-log_likelihood)
 
 def get_attention_head(query, context):
     keys = k.layers.Conv2D(64, (1,1))(context)
@@ -90,19 +147,22 @@ def build_model_mha_jam():
 
     outs = []
     # zls = []
-    # trajectory_decoder_0 = k.layers.LSTM(1trajectory_size)
-    # trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
-    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
-    trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
+    # trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
+    # trajectory_decoder_1 = k.layers.Dense(2)
+    trajectory_decoder_0 = k.layers.Dense(128, activation='relu')
+    trajectory_decoder_1 = k.layers.Dense(24)
 
     for i in range(L):
         attention_i_result = get_attention_head(agent_state_encoded, agent_context_encoded)
         # can be axis 0 if 0 is not for batch .. need checking
         z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
+        # z_l = k.layers.RepeatVector(12)(z_l)
+
         # zls.append(z_l)
         # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
         out_l = trajectory_decoder_0 (z_l)
         out_l = trajectory_decoder_1(out_l)
+        # out_l = k.layers.Reshape((48,))(out_l)
         outs.append(out_l)
 
     # x = k.layers.Dense(200)(tf.concat(zls, axis=0))
@@ -112,6 +172,7 @@ def build_model_mha_jam():
 
     model = k.Model(inputs=[agent_state_inp, agent_context_inp, agent_map_inp], outputs=outs)
     model.summary()
+    # model.compile("adam", loss=gaussian_nll)
     model.compile("adam", loss=euclidean_distance_loss)
 
     # k.utils.plot_model(
@@ -127,6 +188,7 @@ def build_model_mha_jam():
 
 
 def build_model_mha_sam():
+    raise NotImplemented("do not use this for now .. untested");
     ## input
     # k.backend.set_floatx('float16')
     L=1

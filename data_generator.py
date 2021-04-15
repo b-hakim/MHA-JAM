@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import shutil
 import cv2
 import numpy as np
@@ -8,13 +9,18 @@ from nuscenes import NuScenes
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
 from nuscenes.prediction.helper import convert_global_coords_to_local
+from tensorflow.python.ops.gen_data_flow_ops import map_size
 from tqdm import tqdm
 from nuscenes.prediction.input_representation.static_layers import StaticLayerRasterizer
 from nuscenes.prediction.input_representation.agents import AgentBoxesWithFadedHistory
 from nuscenes.prediction.input_representation.interface import InputRepresentation
 from nuscenes.prediction.input_representation.combinators import Rasterizer
 
+from DataVisualization import visualize_traffic, visualize_traffic_neighbours
+
 MAX_TRAJ_LEN = 28
+VISUALIZE_DATA = False
+
 
 class NuScenesFormatTransformer:
     def __init__(self, DATAROOT='./data/sets/nuscenes', dataset_version='v1.0-mini'):
@@ -169,6 +175,11 @@ class NuScenesFormatTransformer:
             leading_arr = np.array(repeat * [-1, -64, -64, -64, -64, -64]).reshape((repeat, 6))
             trajectory = np.append(leading_arr, trajectory, axis=0)
 
+            # print("Built In!")
+            # self.nuim.render_trajectory(sample_token, rotation_yaw=0, center_key_pose=True)
+            # print("Bassel's!")
+            # visualize_traffic(trajectory[(trajectory != [-1, -64, -64, -64, -64, -64]).all(axis=1), 1:3].copy())
+
             for i in range(trajectory.shape[0]):
                 sample_id, x, y, velocity, acceleration, heading_change_rate = trajectory[i]
                 s += str(sample_id) + "," + str(x) + "," + str(y) + "," + str(velocity) + "," \
@@ -229,11 +240,11 @@ class NuScenesFormatTransformer:
                                                                             agent_ann["translation"],
                                                                             agent_ann["rotation"])
 
-            for i in range(len(surroundings_agents_coords)):
-                if surroundings_agents_coords[i][0] < -25 or surroundings_agents_coords[i][0] > 25 \
-                        or surroundings_agents_coords[i][1] < -10 or surroundings_agents_coords[i][1] > 40:
-                    surroundings_agents_coords[i] = None
-                    surroundings_agents_instance_token[i] = None
+            # for i in range(len(surroundings_agents_coords)):
+            #     if surroundings_agents_coords[i][0] < -25 or surroundings_agents_coords[i][0] > 25 \
+            #             or surroundings_agents_coords[i][1] < -10 or surroundings_agents_coords[i][1] > 40:
+            #         surroundings_agents_coords[i] = None
+            #         surroundings_agents_instance_token[i] = None
 
             total_area_side = 50
             cell_size = 1.5625
@@ -242,97 +253,123 @@ class NuScenesFormatTransformer:
             map = [[[-64, -64, -64, -64, -64] for i in range(MAX_TRAJ_LEN)] for j in range(map_side_size * map_side_size)]
 
             for n in range(len(surroundings_agents_coords)):
-                if np.isnan(surroundings_agents_coords[n][0]) or surroundings_agents_coords[n] is None:
-                    continue
+                # if np.isnan(surroundings_agents_coords[n][0]): # ---> surroundings_agents_coords[n] is None
+                #     continue
                 # search for the agent location in the map
-                agent_found = False
-                for i in range(map_side_size):
-                    for j in range(map_side_size):
-                        pos = i * map_side_size + j
-                        # if agent found in the cell
-                        if surroundings_agents_coords[n][0] >= (j * cell_size) - 25 \
-                                and surroundings_agents_coords[n][0] < (j * cell_size) - 25 + cell_size \
-                                and surroundings_agents_coords[n][1] >= i * cell_size - 10 \
-                                and surroundings_agents_coords[n][1] < i * cell_size - 10 + cell_size:
+                # agent_found = False
+                # for i in range(map_side_size):
+                #     for j in range(map_side_size):
+                #         # if agent found in the cell
+                #         if surroundings_agents_coords[n][0] >= (j * cell_size) - 25\
+                #                 and surroundings_agents_coords[n][0] < (j * cell_size) - 25 + cell_size \
+                #                 and surroundings_agents_coords[n][1] < 40 - (i * cell_size) \
+                #                 and surroundings_agents_coords[n][1] > 40 - (i * cell_size + cell_size):
+                #             found_i, found_j = i, j
+                #             break
 
-                            past_trajectory = self.get_current_past_trajectory(surroundings_agents_instance_token[n],
-                                                                               sample_token, num_seconds=1000)[:MAX_TRAJ_LEN]
-                            assert len(past_trajectory) <= MAX_TRAJ_LEN
-                            retrieved_trajectory_len = len(past_trajectory)
+                # get the agent location in the map!
+                alpha_y = (surroundings_agents_coords[n][1] - (-10)) / (40 - (-10))
+                i = (map_side_size - 1) - int(alpha_y * map_side_size + 0)
 
-                            if map[pos][-1][0] != -64:
-                                skip_traj = False
-                                # Save the trajectory with greater length
-                                for ind, map_pos in enumerate(map[pos]):
-                                    if map_pos[0] != 64:
-                                        if MAX_TRAJ_LEN - ind > retrieved_trajectory_len:
-                                            skip_traj = True
-                                if skip_traj:
-                                    agent_found = True
-                                    break
-                                else:
-                                    # print("new longer agent trajectory in cell")
-                                    pass
+                alpha_x = (surroundings_agents_coords[n][0] - (-25)) / (25 - (-25))
+                j = int(alpha_x * map_side_size + 0)
 
-                            past_trajectory = convert_global_coords_to_local(past_trajectory,
-                                                                             agent_ann["translation"],
-                                                                             agent_ann["rotation"])
+                # Confirmation the 2 methods yield the same results
+                # if not(found_i == i and found_j == j):
+                #     raise Exception("Calculations error")
 
-                            if retrieved_trajectory_len != MAX_TRAJ_LEN:
-                                past_trajectory = np.concatenate(
-                                    [np.array([[-64, -64] for _ in range(MAX_TRAJ_LEN - past_trajectory.shape[0])]),
-                                     past_trajectory], axis=0)
+                # prevent out of bound cases (which shall never happen if none is set for out of bound (line 240)
+                if not(i >= 0 and i < map_side_size and j >= 0 and j < map_side_size):
+                    # raise Exception("Calculations error")
+                    continue
 
-                            neighbour_agent_features = []
+                pos = i * map_side_size + j
 
-                            skip_traj = False
+                past_trajectory = self.get_current_past_trajectory(surroundings_agents_instance_token[n],
+                                                                   sample_token, num_seconds=1000)[:MAX_TRAJ_LEN]
+                assert len(past_trajectory) <= MAX_TRAJ_LEN
+                retrieved_trajectory_len = len(past_trajectory)
 
-                            for k in range(0, MAX_TRAJ_LEN):
-                                if retrieved_trajectory_len > k:
-                                    if k == 0:
-                                        sample_token_i = sample_dict_id_token[str(mid_frame_id)]
-                                    else:
-                                        sample_token_i = self.helper.get_sample_annotation(
-                                            surroundings_agents_instance_token[n], sample_token_i)["prev"]
-                                        sample_token_i = self.nuscenes.get('sample_annotation', sample_token_i)['sample_token']
-                                    try:
-                                        velocity = self.helper.get_velocity_for_agent(
-                                            surroundings_agents_instance_token[n], sample_token_i)
-                                    except:
-                                        skip_traj = True
-                                        # print("error")
-                                        break
-                                    acceleration = self.helper.get_acceleration_for_agent(
-                                        surroundings_agents_instance_token[n],
-                                        sample_token_i)
-                                    heading_change_rate = self.helper.get_heading_change_rate_for_agent(
-                                        surroundings_agents_instance_token[n],
-                                        sample_token_i)
-                                    if math.isnan(velocity):
-                                        velocity = 0
-                                    if math.isnan(acceleration):
-                                        acceleration = 0
-                                    if math.isnan(heading_change_rate):
-                                        heading_change_rate = 0
-
-                                    neighbour_agent_features.append([velocity, acceleration, heading_change_rate])
-                                else:
-                                    neighbour_agent_features.append([-64, -64, -64])
-
-                            if skip_traj:
-                                print("skipping agent because it has missing data")
-                                agent_found = True
-                                break
-
-                            past_trajectory = np.concatenate([past_trajectory, neighbour_agent_features], axis=1)
-                            map[pos] = past_trajectory.tolist()
-                            agent_found = True
-                            break
-                    if agent_found:
+                if map[pos][-1][0] != -64:
+                    skip_traj = False
+                    # Save the trajectory with greater length
+                    for ind, map_pos in enumerate(map[pos]):
+                        if map_pos[0] != 64:
+                            if MAX_TRAJ_LEN - ind > retrieved_trajectory_len:
+                                skip_traj = True
+                    if skip_traj:
+                        agent_found = True
                         break
+                    else:
+                        # print("new longer agent trajectory in cell")
+                        pass
+
+                past_trajectory = convert_global_coords_to_local(past_trajectory,
+                                                                 agent_ann["translation"],
+                                                                 agent_ann["rotation"])
+
+                if retrieved_trajectory_len != MAX_TRAJ_LEN:
+                    past_trajectory = np.concatenate(
+                        [np.array([[-64, -64] for _ in range(MAX_TRAJ_LEN - past_trajectory.shape[0])]),
+                         past_trajectory], axis=0)
+
+                neighbour_agent_features = []
+
+                skip_traj = False
+
+                for k in range(0, MAX_TRAJ_LEN):
+                    if retrieved_trajectory_len > k:
+                        if k == 0:
+                            sample_token_i = sample_dict_id_token[str(mid_frame_id)]
+                        else:
+                            sample_token_i = self.helper.get_sample_annotation(
+                                surroundings_agents_instance_token[n], sample_token_i)["prev"]
+                            sample_token_i = self.nuscenes.get('sample_annotation', sample_token_i)['sample_token']
+                        try:
+                            velocity = self.helper.get_velocity_for_agent(
+                                surroundings_agents_instance_token[n], sample_token_i)
+                        except:
+                            skip_traj = True
+                            # print("error")
+                            break
+                        acceleration = self.helper.get_acceleration_for_agent(
+                            surroundings_agents_instance_token[n],
+                            sample_token_i)
+                        heading_change_rate = self.helper.get_heading_change_rate_for_agent(
+                            surroundings_agents_instance_token[n],
+                            sample_token_i)
+                        if math.isnan(velocity):
+                            velocity = 0
+                        if math.isnan(acceleration):
+                            acceleration = 0
+                        if math.isnan(heading_change_rate):
+                            heading_change_rate = 0
+
+                        neighbour_agent_features.append([velocity, acceleration, heading_change_rate])
+                    else:
+                        neighbour_agent_features.append([-64, -64, -64])
+
+                if skip_traj:
+                    print("skipping agent because it has missing data")
+                    agent_found = True
+                    break
+
+                past_trajectory = np.concatenate([past_trajectory, neighbour_agent_features], axis=1)
+                map[pos] = past_trajectory.tolist()
+                # agent_found = True
+                # break
+                #     if agent_found:
+                #         break
 
             map = np.array(map).astype(np.float16)
+
+            if VISUALIZE_DATA:
+                visualize_traffic_neighbours(map, map_side_size * map_side_size)
+
             # context.append(map)
+            if not os.path.exists(os.path.dirname(out_file)):
+                os.makedirs(os.path.dirname(out_file))
+
             np.save(out_file.replace("_.txt", "__" + str(agent_ind) + ".txt"), map)
             agent_ind += 1
 
@@ -362,7 +399,7 @@ class NuScenesFormatTransformer:
             agents_states = fr.readlines()
 
         # format
-        # agent_id, 20x(frame_id, x, y, v, a, yaw_rate)]
+        # agen t_id, 20x(frame_id, x, y, v, a, yaw_rate)]
         agents_states = [[float(x.rstrip()) for x in s.split(',')] for s in agents_states]
 
         mode = "train" if out_file.find("_train") != -1 else "val"
@@ -376,6 +413,9 @@ class NuScenesFormatTransformer:
         static_layer_rasterizer = StaticLayerRasterizer(self.helper)
         agent_rasterizer = AgentBoxesWithFadedHistory(self.helper, seconds_of_history=1)
         mtp_input_representation = InputRepresentation(static_layer_rasterizer, agent_rasterizer, Rasterizer())
+
+        if not os.path.exists(os.path.dirname(out_file)):
+            os.makedirs(os.path.dirname(out_file))
 
         for agent in tqdm(agents_states):
             instance_token = instance_dict_id_token[str(int(agent[0]))]
@@ -414,22 +454,23 @@ class NuScenesFormatTransformer:
         self.get_format_mha_jam_context(
             out_dir+"states_train_" + self.dataset_version + ".txt",
             out_dir+"context_train_" + self.dataset_version + "/context_train_.txt")
-        # self.get_format_mha_jam_maps(
-        #     out_dir+"states_train_" + self.dataset_version + ".txt",
-        #     out_dir+"maps_train_" + self.dataset_version + "/maps_train_.jpg")
+        self.get_format_mha_jam_maps(
+            out_dir+"states_train_" + self.dataset_version + ".txt",
+            out_dir+"maps_train_" + self.dataset_version + "/maps_train_.jpg")
         # 25
         self.get_format_mha_jam(val_agents,
                                 out_dir+"states_val_" + self.dataset_version + ".txt")
         self.get_format_mha_jam_context(
             out_dir+"states_val_" + self.dataset_version + ".txt",
             out_dir+"context_val_" + self.dataset_version + "/context_val_.txt")
-        # self.get_format_mha_jam_maps(
-        #     out_dir+"states_val_" + self.dataset_version + ".txt",
-        #     out_dir+"maps_val_" + self.dataset_version + "/maps_val_.jpg")
+        self.get_format_mha_jam_maps(
+            out_dir+"states_val_" + self.dataset_version + ".txt",
+            out_dir+"maps_val_" + self.dataset_version + "/maps_val_.jpg")
+
 
 if __name__ == '__main__':
-    mode = "v1.0-trainval"
-    # mode = "v1.0-mini"
+    # mode = "v1.0-trainval"
+    mode = "v1.0-mini"
     dataset_dir = '/media/bassel/Entertainment/nuscenes/'
     out_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
 
