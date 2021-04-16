@@ -153,8 +153,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='v1.0-mini')
     parser.add_argument('--preprocessed_dataset_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
     parser.add_argument('--model_path', type=str, default='/home/bassel/repos/nuscenes/mha-jam',
-                        description="Path of a file for using a specific model or pass the path of the folder to "
+                        help="Path of a file for using a specific model or pass the path of the folder to "
                                     "experiment all models inside the folder")
+    parser.add_argument('--batch_size', type=int, default=8)
     args = parser.parse_args()
 
-    run(args.preprocessed_dataset_dir, args.mode, args.model_path)
+    run(args.preprocessed_dataset_dir, args.mode, args.model_path, args.batch_size)

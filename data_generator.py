@@ -451,22 +451,22 @@ class NuScenesFormatTransformer:
         # print("max length of the past sequence for val is:",mx)
         # return
 
-        self.get_format_mha_jam(train_agents, out_dir + "states_train_" + self.dataset_version + ".txt")
+        self.get_format_mha_jam(train_agents, os.path.join(out_dir, "states_train_" + self.dataset_version + ".txt"))
         self.get_format_mha_jam_context(
-            out_dir+"states_train_" + self.dataset_version + ".txt",
-            out_dir+"context_train_" + self.dataset_version + "/context_train_.txt")
+            os.path.join(out_dir, "states_train_" + self.dataset_version + ".txt"),
+            os.path.join(out_dir, "context_train_" + self.dataset_version, "context_train_.txt"))
         self.get_format_mha_jam_maps(
-            out_dir+"states_train_" + self.dataset_version + ".txt",
-            out_dir+"maps_train_" + self.dataset_version + "/maps_train_.jpg")
+            os.path.join(out_dir, "states_train_" + self.dataset_version + ".txt"),
+            os.path.join(out_dir, "maps_train_" + self.dataset_version, "maps_train_.jpg"))
         # 25
         self.get_format_mha_jam(val_agents,
-                                out_dir+"states_val_" + self.dataset_version + ".txt")
+                                os.path.join(out_dir,"states_val_" + self.dataset_version + ".txt"))
         self.get_format_mha_jam_context(
-            out_dir+"states_val_" + self.dataset_version + ".txt",
-            out_dir+"context_val_" + self.dataset_version + "/context_val_.txt")
+            os.path.join(out_dir, "states_val_" + self.dataset_version + ".txt"),
+            os.path.join(out_dir, "context_val_" + self.dataset_version, "context_val_.txt"))
         self.get_format_mha_jam_maps(
-            out_dir+"states_val_" + self.dataset_version + ".txt",
-            out_dir+"maps_val_" + self.dataset_version + "/maps_val_.jpg")
+            os.path.join(out_dir, "states_val_" + self.dataset_version + ".txt"),
+            os.path.join(out_dir, "maps_val_" + self.dataset_version, "maps_val_.jpg"))
 
 
 if __name__ == '__main__':
