@@ -24,7 +24,7 @@ def named_logs(model, logs):
     return result
 
 
-def run(pdd, mode, model_type, model_save_dir, save_best_model_only):
+def run(pdd, mode, model_type, model_save_dir, save_best_model_only, epochs, batch_size):
     train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = os.path.join(pdd + "states_train_" + mode + ".txt"), \
                                                                                        os.path.join(pdd + "context_train_" + mode + "/"), \
                                                                                        os.path.join(pdd + "maps_train_" + mode + "/"), \
@@ -42,19 +42,17 @@ def run(pdd, mode, model_type, model_save_dir, save_best_model_only):
 
     # model.load_weights("model_iterations/model_mha_best.h5")
 
-    BATCH_SIZE=8
-    EPOCHS=5000
-    batches = int(np.ceil(train_states_x.shape[0]/BATCH_SIZE))
+    batches = int(np.ceil(train_states_x.shape[0]/batch_size))
     least_loss = -1
     loss_diverging = 0
 
 
-    for e in range(0,EPOCHS):
+    for e in range(0,epochs):
         losses_sum = 0
 
         for i in tqdm(range(batches)):
-            start = i*BATCH_SIZE
-            end = start + BATCH_SIZE
+            start = i*batch_size
+            end = start + batch_size
 
             if i == batches - 1:
                 end = len(train_states_x)
@@ -69,7 +67,7 @@ def run(pdd, mode, model_type, model_save_dir, save_best_model_only):
             # print(predictions)
 
             losses_sum += loss['loss']
-            tensorboard.on_epoch_end(i+e*BATCH_SIZE, named_logs(model, logs))
+            tensorboard.on_epoch_end(i+e*batch_size, named_logs(model, loss))
 
         with open("output.txt", 'a') as fw:
             fw.writelines(["Epoch " + str(e) + ": " + str(losses_sum/batches)+"\n"])
@@ -109,6 +107,8 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', type=str, default='JAM')
     parser.add_argument('--model_save_dir', type=str, default='/mnt/23f8bdba-87e9-4b65-b3f8-dd1f9979402e/model_iterations')
     parser.add_argument('--save_best_model_only', type=bool, default=False)
+    parser.add_argument('--epochs', type=int, default=5000)
+    parser.add_argument('--batch_size', type=int, default=8)
 
     args = parser.parse_args()
 
@@ -117,7 +117,8 @@ if __name__ == '__main__':
     else:
         model_type = MODEL_TYPE.MHA_SAM
 
-    run(args.preprocessed_dataset_dir, args.mode, model_type, args.model_save_dir, args.save_best_model_only)
+    run(args.preprocessed_dataset_dir, args.mode, model_type, args.model_save_dir,
+        args.save_best_model_only, args.epochs, args.batch_size)
 
 '''
 lines to change for using gaussian into euclidean and vise versa:
