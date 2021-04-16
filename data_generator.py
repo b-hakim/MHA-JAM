@@ -1,3 +1,4 @@
+import argparse
 import json
 import math
 import os
@@ -470,9 +471,19 @@ class NuScenesFormatTransformer:
 
 if __name__ == '__main__':
     # mode = "v1.0-trainval"
-    mode = "v1.0-mini"
-    dataset_dir = '/media/bassel/Entertainment/nuscenes/'
-    out_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
+    # mode = "v1.0-mini"
+    # dataset_dir = '/home/bassel/repos/nuscenes/v1.0-mini'
+    # out_dir = "/home/bassel/repos/nuscenes/mha-jam"
+
+    parser = argparse.ArgumentParser(description='Generate the required files from dataset')
+    parser.add_argument('--mode', type=str, default='v1.0-mini')
+    parser.add_argument('--dataset_dir', type=str, default='/home/bassel/repos/nuscenes/v1.0-mini')
+    parser.add_argument('--out_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
+    args = parser.parse_args()
+
+    mode = args.mode
+    dataset_dir = args.dataset_dir
+    out_dir = args.out_dir
 
     n = NuScenesFormatTransformer(dataset_dir, mode)
     n.run(out_dir)

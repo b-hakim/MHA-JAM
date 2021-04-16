@@ -1,7 +1,12 @@
+import argparse
+import os
+
+import tensorboard
 from tqdm import tqdm
 from data_loader import load_data, load_map_batch
 from model import build_model_mha_jam, build_model_mha_sam
 from enum import Enum
+
 import numpy as np
 
 
@@ -10,13 +15,22 @@ class MODEL_TYPE(Enum):
     MHA_SAM = 1
 
 
-def run(pdd, mode, model_type=MODEL_TYPE.MHA_JAM):
-    train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = pdd + "states_train_" + mode + ".txt", \
-                                                                                       pdd + "context_train_" + mode + "/", \
-                                                                                       pdd + "maps_train_" + mode + "/", \
-                                                                                       pdd + "states_val_" + mode + ".txt", \
-                                                                                       pdd + "context_val_" + mode + "/", \
-                                                                                       pdd + "maps_val_" + mode + "/"
+# Transform train_on_batch return value
+# to dict expected by on_batch_end callback
+def named_logs(model, logs):
+    result = {}
+    for l in zip(model.metrics_names, logs):
+        result[l[0]] = l[1]
+    return result
+
+
+def run(pdd, mode, model_type, model_save_dir, save_best_model_only):
+    train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = os.path.join(pdd + "states_train_" + mode + ".txt"), \
+                                                                                       os.path.join(pdd + "context_train_" + mode + "/"), \
+                                                                                       os.path.join(pdd + "maps_train_" + mode + "/"), \
+                                                                                       os.path.join(pdd + "states_val_" + mode + ".txt"), \
+                                                                                       os.path.join(pdd + "context_val_" + mode + "/"), \
+                                                                                       os.path.join(pdd + "maps_val_" + mode + "/")
 
     train_states_x, train_states_y, train_context_x = load_data(train_states, train_context)
     # train_states_x, train_states_y, train_context_x = train_states_x[:1], train_states_y[:1], train_context_x[:1]
@@ -26,13 +40,14 @@ def run(pdd, mode, model_type=MODEL_TYPE.MHA_JAM):
     else:
         model = build_model_mha_sam()
 
-    model.load_weights("model_iterations/model_mha_best.h5")
+    # model.load_weights("model_iterations/model_mha_best.h5")
 
     BATCH_SIZE=8
     EPOCHS=5000
     batches = int(np.ceil(train_states_x.shape[0]/BATCH_SIZE))
     least_loss = -1
     loss_diverging = 0
+
 
     for e in range(0,EPOCHS):
         losses_sum = 0
@@ -54,6 +69,7 @@ def run(pdd, mode, model_type=MODEL_TYPE.MHA_JAM):
             # print(predictions)
 
             losses_sum += loss['loss']
+            tensorboard.on_epoch_end(i+e*BATCH_SIZE, named_logs(model, logs))
 
         with open("output.txt", 'a') as fw:
             fw.writelines(["Epoch " + str(e) + ": " + str(losses_sum/batches)+"\n"])
@@ -70,8 +86,11 @@ def run(pdd, mode, model_type=MODEL_TYPE.MHA_JAM):
         if losses_sum/batches < least_loss or least_loss == -1:
             loss_diverging = 0
             least_loss = losses_sum/batches
-            model.save("model_iterations/model_mha_"+str(e)+".h5", save_format="tf", include_optimizer=True)
-            # model.save("model_iterations/model_mha_best.h5", save_format="tf", include_optimizer=True)
+
+            if save_best_model_only:
+                model.save(os.path.join(model_save_dir, "/model_mha_best.h5"), save_format="tf", include_optimizer=True)
+            else:
+                model.save(os.path.join(model_save_dir, "model_mha_"+str(e)+".h5"), save_format="tf", include_optimizer=True)
         else:
             loss_diverging += 1
 
@@ -80,12 +99,25 @@ def run(pdd, mode, model_type=MODEL_TYPE.MHA_JAM):
 
 
 if __name__ == '__main__':
-    mode = "v1.0-trainval"
+    # mode = "v1.0-trainval"
     # mode = "v1.0-mini"
-    model_type = MODEL_TYPE.MHA_JAM
-    preprocessed_dataset_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
+    # preprocessed_dataset_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
 
-    run(preprocessed_dataset_dir, mode, model_type)
+    parser = argparse.ArgumentParser(description='Generate the required files from dataset')
+    parser.add_argument('--mode', type=str, default='v1.0-mini')
+    parser.add_argument('--preprocessed_dataset_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
+    parser.add_argument('--model_type', type=str, default='JAM')
+    parser.add_argument('--model_save_dir', type=str, default='/mnt/23f8bdba-87e9-4b65-b3f8-dd1f9979402e/model_iterations')
+    parser.add_argument('--save_best_model_only', type=bool, default=False)
+
+    args = parser.parse_args()
+
+    if args.model_type == 'JAM':
+        model_type = MODEL_TYPE.MHA_JAM
+    else:
+        model_type = MODEL_TYPE.MHA_SAM
+
+    run(args.preprocessed_dataset_dir, args.mode, model_type, args.model_save_dir, args.save_best_model_only)
 
 '''
 lines to change for using gaussian into euclidean and vise versa:

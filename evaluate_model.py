@@ -1,3 +1,4 @@
+import argparse
 import gc
 import math
 import os
@@ -145,5 +146,13 @@ if __name__ == '__main__':
     # mode = "v1.0-trainval"
     mode = "v1.0-mini"
     preprocessed_dataset_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup"
+
+    parser = argparse.ArgumentParser(description='Calculate the model error rates')
+    parser.add_argument('--mode', type=str, default='v1.0-mini')
+    parser.add_argument('--preprocessed_dataset_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
+    parser.add_argument('--model_path', type=str, default='/home/bassel/repos/nuscenes/mha-jam',
+                        description="Path of a file for using a specific model or pass the path of the folder to "
+                                    "experiment all models inside the folder")
+    args = parser.parse_args()
 
     run(preprocessed_dataset_dir, mode)
