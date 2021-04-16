@@ -16,20 +16,43 @@ conda create --name <env_name> --file requirements.txt
 ```
 
 ## Data preparation
-1- Download the [NuScenes dataset](https://www.nuscenes.org/download?externalData=all&mapData=all&modalities=Any) and the [nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit)
+1- Download and extract the Full dataset v1.0 [NuScenes dataset](https://www.nuscenes.org/download?externalData=all&mapData=all&modalities=Any) and the [nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit). 
+Notes: 
+- An account is needed to download the files
+- The dataset is big, so mini data can be used for quick experimenting
+- You will need to download the latest 'Map expansion' and extract that inside the maps folder.
 
-2- Extract all the files
+2- Generate the files needed for training from the dataset:
+```
+python data_generator.py --mode="v1.0-mini" --dataset_dir='/home/bassel/repos/nuscenes/v1.0-mini' --out_dir="/home/bassel/repos/nuscenes/mha-jam"
+```
+Parameters: 
+* `mode` is used to switch between `v1.0-mini` and `v1.0-trainval` versions (mini or big set). 
+* `dataset_dir` accepts the path of the dataset
+* `out_dir` accepts the output dir for generating the training files (which are needed for training in the next step)
 
-3- Edit the path for the dataset and the output path in the `data_generator.py` and run it.
-It is recommended to use the mini version first. To do so, set the mode to "v1.0-mini" before runing the script `data_generator.py`
 
-4- In `train_model.py`:
- - Set the `preprocessed_dataset_dir` to the output path set in step `#3`.
- - Modify the number of epochs as desired
- - Set the `model_type` to either `MODEL_TYPE.MHA_JAM` or `MODEL_TYPE.MHA_SAM`
- - Run the script
- # ToDo: Pass a path to save the model into. Currently, the model is assumed to lie in model_iterations 
- # ToDo: Pass a flag to save model after each iteration, save best model only, or latest model
+3- Start training:
+```
+python train_model.py --mode="v1.0-mini" --preprocessed_dataset_dir="/home/bassel/repos/nuscenes/mha-jam" --model_type="JAM" --model_save_dir "./model_iterations" --save_best_model_only=True --epochs=500 --batch_size=8 
+```
+Parameters
+ * `mode` is used to switch between `v1.0-mini` and `v1.0-trainval` versions (mini or big set). 
+ * `preprocessed_dataset_dir` is set to the path of the training files (generated in the previous step).
+ * `model_type` is set to either `JAM` or `SAM` to switch between the 2 models types
+ * `model_save_dir` accepts the path of the dir to save the model
+ * `save_best_model_only` is set to `True` or `False` to overwrite the best model in the same file vs saving each model decreasing the loss
+ * `epochs` controls the number of epochs as desired
+ * `batch_size` controls the size of the batch
  
-5- In `evaluate_model.py` Set the `preprocessed_dataset_dir` to the output path set in step `#3` and run it to get the best model.
-#ToDo: Allow model path to be passed as an input. Currently, the model is assumed to lie in model_iterations
+
+4- Evaluate the model:
+```
+python evaluate_model.py
+```
+Parameters
+ *`mode` is used to switch between `v1.0-mini` and `v1.0-trainval` versions (mini or big set).
+ *`preprocessed_dataset_dir` is set to the path of the training files (generated in step `#2`).
+ *`model_path` this is set to either a dir containing several models (at least 1 model) or the path to a specific model file. \
+For a dir, each model existing is being evaluated nad the minimum errors are reported. For a single file, the passed model error is reported.  
+
