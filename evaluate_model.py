@@ -30,6 +30,7 @@ def calculate_ade_fde_gaussian(actual, predicted):
         for col in range(actual.shape[1]):
             predicted_samples = np.random.multivariate_normal(predicted[row, col, 0::2],
                                                               np.identity(2)*np.exp(predicted[row, col, 1::2]))
+            # np.random.normal(predicted[row, col, 0::2], np.exp(predicted[row, col, 1::2]))
             # predicted_samples = predicted[row, col, 0::2]/np.exp(predicted[row, col, 1::2])
             sub = actual[row, col]- predicted_samples
             sum_sq = np.dot(sub, sub)
@@ -77,7 +78,7 @@ def run(pdd, mode, model_path, batch_size):
     val_states, val_context, val_map = os.path.join(pdd, "states_val_"+mode+".txt"), \
                                        os.path.join(pdd, "context_val_"+mode+"/"), \
                                        os.path.join(pdd, "maps_val_"+mode+"/")
-    # experimenting one batch
+    # # experimenting one batch
     # val_states, val_context, val_map = os.path.join(pdd, "states_train_"+mode+".txt"), \
     #                                    os.path.join(pdd, "context_train_"+mode+"/"), \
     #                                    os.path.join(pdd, "maps_train_"+mode+"/")
@@ -106,7 +107,7 @@ def run(pdd, mode, model_path, batch_size):
                                         custom_objects={'euclidean_distance_loss': euclidean_distance_loss,
                                                         'gaussian_nll':gaussian_nll})
         else:
-            model = k.models.load_model(os.path.join(model_path, available_models[i]),
+            model = k.models.load_model(available_models[i],
                                         custom_objects={'euclidean_distance_loss': euclidean_distance_loss,
                                                         'gaussian_nll':gaussian_nll})
         predictions = []
@@ -151,7 +152,7 @@ def run(pdd, mode, model_path, batch_size):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Calculate the model error rates')
-    parser.add_argument('--mode', type=str, default='v1.0-mini')
+    parser.add_argument('--mode', type=str, default='v1.0-mini') #v1.0-mini
     parser.add_argument('--preprocessed_dataset_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
     parser.add_argument('--model_path', type=str, default='/mnt/23f8bdba-87e9-4b65-b3f8-dd1f9979402e/model_iterations',
                         help="Path of a file for using a specific model or pass the path of the folder to "
