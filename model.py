@@ -147,16 +147,16 @@ def build_model_mha_jam():
 
     outs = []
     # zls = []
-    # trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
-    # trajectory_decoder_1 = k.layers.Dense(2)
-    trajectory_decoder_0 = k.layers.Dense(128, activation='relu')
-    trajectory_decoder_1 = k.layers.Dense(24)
+    trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
+    trajectory_decoder_1 = k.layers.Dense(2) # set to 4 for gaussian!
+    # trajectory_decoder_0 = k.layers.Dense(128, activation='relu')
+    # trajectory_decoder_1 = k.layers.Dense(24)
 
     for i in range(L):
         attention_i_result = get_attention_head(agent_state_encoded, agent_context_encoded)
         # can be axis 0 if 0 is not for batch .. need checking
         z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
-        # z_l = k.layers.RepeatVector(12)(z_l)
+        z_l = k.layers.RepeatVector(12)(z_l)
 
         # zls.append(z_l)
         # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
