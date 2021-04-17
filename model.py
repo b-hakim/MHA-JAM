@@ -75,14 +75,16 @@ def gaussian_nll(ytrue, ypreds):
     return k.backend.mean(-log_likelihood)
 
 def get_attention_head(query, context):
-    keys = k.layers.Conv2D(64, (1,1))(context)
+    keys = k.layers.Conv2D(64, (1,1))(context) # 32x32 , 64
     values = k.layers.Conv2D(64, (1,1))(context)
     ## need to put scale = sqrt(d)
-    keys = k.layers.Reshape((32*32, 64))(keys)
+    keys = k.layers.Reshape((32*32, 64))(keys) # 32x32 , 64
     # keys = k.layers.Permute((2, 1))(keys)
-    values = k.layers.Reshape((32*32, 64))(values)
-    query = k.layers.Reshape((1, 64))(query)
-    combined = k.layers.Attention()([query, values, keys])
+    values = k.layers.Reshape((32*32, 64))(values)# 32x32 , 64
+
+    query = k.layers.Reshape((1, 64))(query)# 1 , 64
+
+    combined = k.layers.Attention()([query, values, keys]) # 1, 64
 
     # mult_scores_values = tf.reshape(mult_scores_values, (-1, 1, 64))
     # print("weights", mult_scores_values.shape)
@@ -112,22 +114,27 @@ def build_model_mha_jam():
     agent_context_inp = k.Input(shape=(32, 32, trajectory_size, 5))
     # agent_map_inp = k.Input(shape=(500,500,3))
     agent_map_inp = k.Input(shape=(1024, 1024, 3), dtype="float16")
+    # output_traj = k.Input(shape=(12, 2))
     ## input embedding
-    embedding_layer = k.layers.Dense(64, activation='relu')
+    embedding_layer = k.layers.Dense(64)
+    # embedding_layer2 = k.layers.Dense(2)
 
     agent_state = k.layers.TimeDistributed(embedding_layer)(agent_state_inp)
+    # output_traj = k.layers.TimeDistributed(embedding_layer2)(output_traj)
+
     agent_context = k.layers.TimeDistributed(
             k.layers.TimeDistributed(
                     k.layers.TimeDistributed(
-                            embedding_layer)))(agent_context_inp)
+                            embedding_layer)))(agent_context_inp) # 32x32x28x64
 
     ## input encoding
     trajectory_encoder = k.layers.LSTM(64)
 
     agent_state_encoded = trajectory_encoder(agent_state)
+
     agent_context_encoded = k.layers.TimeDistributed(
             k.layers.TimeDistributed(
-                    trajectory_encoder))(agent_context)
+                    trajectory_encoder))(agent_context) # 32x32x64
 
     ## add here map details
     map_features_extractor = k.applications.VGG19(
@@ -147,20 +154,24 @@ def build_model_mha_jam():
 
     outs = []
     # zls = []
-    trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
-    trajectory_decoder_1 = k.layers.Dense(2) # set to 4 for gaussian!
-    # trajectory_decoder_0 = k.layers.Dense(128, activation='relu')
-    # trajectory_decoder_1 = k.layers.Dense(24)
+    # trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
+    # trajectory_decoder_1 = k.layers.Dense(2) # set to 4 for gaussian!
+    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
+    trajectory_decoder_1 = k.layers.Dense(24)
 
     for i in range(L):
         attention_i_result = get_attention_head(agent_state_encoded, agent_context_encoded)
         # can be axis 0 if 0 is not for batch .. need checking
         z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
-        z_l = k.layers.RepeatVector(12)(z_l)
+        # z_l = k.layers.RepeatVector(12)(z_l)
 
         # zls.append(z_l)
         # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
-        out_l = trajectory_decoder_0 (z_l)
+        # trajectory_decoder_0.states = z_l
+        out_l = trajectory_decoder_0(z_l)
+
+        # out_l = k.layers.TimeDistributed(trajectory_decoder_1)(out_l)
+
         out_l = trajectory_decoder_1(out_l)
         # out_l = k.layers.Reshape((48,))(out_l)
         outs.append(out_l)
@@ -173,7 +184,7 @@ def build_model_mha_jam():
     model = k.Model(inputs=[agent_state_inp, agent_context_inp, agent_map_inp], outputs=outs)
     model.summary()
     # model.compile("adam", loss=gaussian_nll)
-    model.compile("adam", loss=euclidean_distance_loss)
+    model.compile(Adam(), loss=euclidean_distance_loss)
 
     # k.utils.plot_model(
     #     model,
@@ -188,7 +199,6 @@ def build_model_mha_jam():
 
 
 def build_model_mha_sam():
-    raise NotImplemented("do not use this for now .. untested");
     ## input
     # k.backend.set_floatx('float16')
     L=1
@@ -197,7 +207,7 @@ def build_model_mha_sam():
     # agent_map_inp = k.Input(shape=(500,500,3))
     agent_map_inp = k.Input(shape=(1024, 1024, 3), dtype="float16")
     ## input embedding
-    embedding_layer = k.layers.Dense(64, activation='relu')
+    embedding_layer = k.layers.Dense(64)
 
     agent_state = k.layers.TimeDistributed(embedding_layer)(agent_state_inp)
     agent_context = k.layers.TimeDistributed(
@@ -234,10 +244,10 @@ def build_model_mha_sam():
     # trajectory_decoder_0 = k.layers.LSTM(1trajectory_size)
     # trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
     trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
-    trajectory_decoder_1 = k.layers.Dense(24, activation='relu')
+    trajectory_decoder_1 = k.layers.Dense(24)
 
     for i in range(L):
-        attention_i_result_static = get_attention_head(agent_map, agent_context_encoded)
+        attention_i_result_static = get_attention_head(agent_state_encoded, agent_map)
         attention_i_result_dynamic = get_attention_head(agent_state_encoded, agent_context_encoded)
         attention_i_result = k.backend.concatenate([attention_i_result_static, attention_i_result_dynamic])
 
@@ -245,7 +255,7 @@ def build_model_mha_sam():
         z_l = k.layers.Concatenate(axis=1)([agent_state_encoded, attention_i_result])
         # zls.append(z_l)
         # for simplicity, I use Dense Layer, instead, the paper uses an LSTM
-        out_l = trajectory_decoder_0 (z_l)
+        out_l = trajectory_decoder_0(z_l)
         out_l = trajectory_decoder_1(out_l)
         outs.append(out_l)
 
