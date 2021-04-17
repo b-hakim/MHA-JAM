@@ -1,7 +1,8 @@
 import argparse
 import os
 
-import tensorboard
+import tensorflow as tf
+
 from tqdm import tqdm
 from data_loader import load_data, load_map_batch
 from model import build_model_mha_jam, build_model_mha_sam
@@ -20,17 +21,17 @@ class MODEL_TYPE(Enum):
 def named_logs(model, logs):
     result = {}
     for l in zip(model.metrics_names, logs):
-        result[l[0]] = l[1]
+        result[l[0]] = float(l[1])
     return result
 
 
 def run(pdd, mode, model_type, model_save_dir, save_best_model_only, epochs, batch_size):
-    train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = os.path.join(pdd + "states_train_" + mode + ".txt"), \
-                                                                                       os.path.join(pdd + "context_train_" + mode + "/"), \
-                                                                                       os.path.join(pdd + "maps_train_" + mode + "/"), \
-                                                                                       os.path.join(pdd + "states_val_" + mode + ".txt"), \
-                                                                                       os.path.join(pdd + "context_val_" + mode + "/"), \
-                                                                                       os.path.join(pdd + "maps_val_" + mode + "/")
+    train_states, train_context, train_map_dir, val_states, val_context, val_map_dir = os.path.join(pdd, "states_train_" + mode + ".txt"), \
+                                                                                       os.path.join(pdd, "context_train_" + mode + "/"), \
+                                                                                       os.path.join(pdd, "maps_train_" + mode + "/"), \
+                                                                                       os.path.join(pdd, "states_val_" + mode + ".txt"), \
+                                                                                       os.path.join(pdd, "context_val_" + mode + "/"), \
+                                                                                       os.path.join(pdd, "maps_val_" + mode + "/")
 
     train_states_x, train_states_y, train_context_x = load_data(train_states, train_context)
     # train_states_x, train_states_y, train_context_x = train_states_x[:1], train_states_y[:1], train_context_x[:1]
@@ -41,6 +42,14 @@ def run(pdd, mode, model_type, model_save_dir, save_best_model_only, epochs, bat
         model = build_model_mha_sam()
 
     # model.load_weights("model_iterations/model_mha_best.h5")
+    tensorboard = tf.keras.callbacks.TensorBoard(
+        log_dir='./logs',
+        histogram_freq=0,
+        batch_size=batch_size,
+        write_graph=True,
+        write_grads=True
+    )
+    tensorboard.set_model(model)
 
     batches = int(np.ceil(train_states_x.shape[0]/batch_size))
     least_loss = -1
@@ -67,7 +76,8 @@ def run(pdd, mode, model_type, model_save_dir, save_best_model_only, epochs, bat
             # print(predictions)
 
             losses_sum += loss['loss']
-            tensorboard.on_epoch_end(i+e*batch_size, named_logs(model, loss))
+
+            tensorboard.on_epoch_end(int(i+e*batch_size), loss)
 
         with open("output.txt", 'a') as fw:
             fw.writelines(["Epoch " + str(e) + ": " + str(losses_sum/batches)+"\n"])
@@ -105,9 +115,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='v1.0-mini')
     parser.add_argument('--preprocessed_dataset_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
     parser.add_argument('--model_type', type=str, default='JAM')
-    parser.add_argument('--model_save_dir', type=str, default='/mnt/23f8bdba-87e9-4b65-b3f8-dd1f9979402e/model_iterations')
+    parser.add_argument('--model_save_dir', type=str, default='/mnt/23f8bdba-87e9-4b65-b3f8-dd1f9979402e/model_iterations_lstm')
     parser.add_argument('--save_best_model_only', type=bool, default=False)
-    parser.add_argument('--epochs', type=int, default=5000)
+    parser.add_argument('--epochs', type=int, default=1050)
     parser.add_argument('--batch_size', type=int, default=8)
 
     args = parser.parse_args()
