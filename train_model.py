@@ -96,7 +96,7 @@ def run(pdd, mode, model_type, model_save_dir, save_best_model_only, epochs, bat
             least_loss = losses_sum/batches
 
             if save_best_model_only:
-                model.save(os.path.join(model_save_dir, "/model_mha_best.h5"), save_format="tf", include_optimizer=True)
+                model.save(os.path.join(model_save_dir, "model_mha_best.h5"), save_format="tf", include_optimizer=True)
             else:
                 model.save(os.path.join(model_save_dir, "model_mha_"+str(e)+".h5"), save_format="tf", include_optimizer=True)
         else:
@@ -109,15 +109,14 @@ def run(pdd, mode, model_type, model_save_dir, save_best_model_only, epochs, bat
 if __name__ == '__main__':
     # mode = "v1.0-trainval"
     # mode = "v1.0-mini"
-    # preprocessed_dataset_dir = "/home/bassel/PycharmProjects/Trajectory-Transformer/datasets/nuscenes/bkup/"
 
     parser = argparse.ArgumentParser(description='Generate the required files from dataset')
     parser.add_argument('--mode', type=str, default='v1.0-mini')
     parser.add_argument('--preprocessed_dataset_dir', type=str, default='/home/bassel/repos/nuscenes/mha-jam')
     parser.add_argument('--model_type', type=str, default='JAM')
     parser.add_argument('--model_save_dir', type=str, default='/mnt/23f8bdba-87e9-4b65-b3f8-dd1f9979402e/model_iterations_lstm')
-    parser.add_argument('--save_best_model_only', type=bool, default=False)
-    parser.add_argument('--epochs', type=int, default=1050)
+    parser.add_argument('--save_best_model_only', type=bool, default=True)
+    parser.add_argument('--epochs', type=int, default=5000)
     parser.add_argument('--batch_size', type=int, default=8)
 
     args = parser.parse_args()
