@@ -1,6 +1,7 @@
 import tensorflow.keras as k
 import numpy as np
 from tensorflow.keras.optimizers import SGD, Adam
+import tensorflow as tf
 
 trajectory_size=28
 
@@ -12,9 +13,25 @@ trajectory_size=28
 # part5: decode the LSTM
 
 def euclidean_distance_loss(y_true, y_pred):
-    print(y_true.shape, y_pred.shape)
-    sq = k.backend.square(k.backend.reshape(y_pred, (-1, 12, 2)) - y_true)
-    sq_sum = k.backend.sum(sq, axis=-1)
+    # k.backend.print_tensor("ytrue shape:", y_true.shape)
+    # k.backend.print_tensor("ypred shape:", y_pred.shape)
+    y_pred = k.backend.reshape(y_pred, (-1, 16, 24))
+    y_true = k.backend.reshape(y_true, (-1, 1, 24))
+    # y_true = tf.expand_dims(y_true, axis=1)
+    # k.backend.print_tensor("ytrue shape:", y_true.shape)
+    sq = k.backend.square(y_pred - y_true)
+    sq_sum = k.backend.sum(sq, axis=2)
+
+    # k.backend.print_tensor("sq_sum shape:", sq_sum.shape)
+
+    ind = k.backend.argmin(sq_sum, axis=1)
+    ind = tf.cast(ind, "int32")
+
+    batch_indices = tf.range(sq_sum.shape[0])
+    indices = tf.transpose([batch_indices, ind])
+    sq_sum = tf.gather_nd(sq_sum, indices)
+    # k.backend.print_tensor("sq_sum_filtered:", sq_sum.shape)
+
     return k.backend.sqrt(sq_sum)
 
 # https://gist.github.com/sergeyprokudin/4a50bf9b75e0559c1fcd2cae860b879e
@@ -109,7 +126,7 @@ def get_map_cnn_model(map_BGR):
 def build_model_mha_jam():
     ## input
     # k.backend.set_floatx('float16')
-    L=1
+    L=16
     agent_state_inp = k.Input(shape=(trajectory_size, 5))
     agent_context_inp = k.Input(shape=(32, 32, trajectory_size, 5))
     # agent_map_inp = k.Input(shape=(500,500,3))
@@ -154,10 +171,10 @@ def build_model_mha_jam():
 
     outs = []
     # zls = []
-    # trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
-    # trajectory_decoder_1 = k.layers.Dense(2) # set to 4 for gaussian!
-    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
-    trajectory_decoder_1 = k.layers.Dense(24)
+    trajectory_decoder_0 = k.layers.LSTM(128, return_sequences=True)
+    trajectory_decoder_1 = k.layers.Dense(2) # set to 4 for gaussian!
+    # trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
+    # trajectory_decoder_1 = k.layers.Dense(24)
 
     for i in range(L):
         attention_i_result = get_attention_head(agent_state_encoded, agent_context_encoded)
@@ -173,9 +190,11 @@ def build_model_mha_jam():
         # out_l = k.layers.TimeDistributed(trajectory_decoder_1)(out_l)
 
         out_l = trajectory_decoder_1(out_l)
-        # out_l = k.layers.Reshape((48,))(out_l)
         outs.append(out_l)
 
+    # outs = tf.convert_to_tensor(outs)
+    outs = tf.concat(outs, axis=1)
+    outs = [k.backend.reshape(outs, (-1, L, 12, 2))]
     # x = k.layers.Dense(200)(tf.concat(zls, axis=0))
     # out_prob = k.layers.Dense(L, activation='softmax')(x)
     # need to review the out location for this
