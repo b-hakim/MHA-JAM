@@ -4,6 +4,8 @@ from tensorflow.keras.optimizers import SGD, Adam
 import tensorflow as tf
 
 trajectory_size=28
+L = 16
+
 
 ## Input: agent_state, context_states, map
 # Part1: encode agent_state, encode context_states, cnn for map
@@ -15,7 +17,7 @@ trajectory_size=28
 def euclidean_distance_loss(y_true, y_pred):
     # k.backend.print_tensor("ytrue shape:", y_true.shape)
     # k.backend.print_tensor("ypred shape:", y_pred.shape)
-    y_pred = k.backend.reshape(y_pred, (-1, 16, 24))
+    y_pred = k.backend.reshape(y_pred, (-1, L, 24))
     y_true = k.backend.reshape(y_true, (-1, 1, 24))
     # y_true = tf.expand_dims(y_true, axis=1)
     # k.backend.print_tensor("ytrue shape:", y_true.shape)
@@ -126,7 +128,6 @@ def get_map_cnn_model(map_BGR):
 def build_model_mha_jam():
     ## input
     # k.backend.set_floatx('float16')
-    L=16
     agent_state_inp = k.Input(shape=(trajectory_size, 5))
     agent_context_inp = k.Input(shape=(32, 32, trajectory_size, 5))
     # agent_map_inp = k.Input(shape=(500,500,3))
@@ -220,7 +221,6 @@ def build_model_mha_jam():
 def build_model_mha_sam():
     ## input
     # k.backend.set_floatx('float16')
-    L=1
     agent_state_inp = k.Input(shape=(trajectory_size, 5))
     agent_context_inp = k.Input(shape=(32, 32, trajectory_size, 5))
     # agent_map_inp = k.Input(shape=(500,500,3))
@@ -260,10 +260,10 @@ def build_model_mha_sam():
 
     outs = []
     # zls = []
-    # trajectory_decoder_0 = k.layers.LSTM(1trajectory_size)
-    # trajectory_decoder_1 = k.layers.Dense(2, activation='relu')
-    trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
-    trajectory_decoder_1 = k.layers.Dense(24)
+    trajectory_decoder_0 = k.layers.LSTM(trajectory_size)
+    trajectory_decoder_1 = k.layers.Dense(2) # set to 4 for gaussian
+    # trajectory_decoder_0 = k.layers.Dense(64, activation='relu')
+    # trajectory_decoder_1 = k.layers.Dense(24)
 
     for i in range(L):
         attention_i_result_static = get_attention_head(agent_state_encoded, agent_map)
@@ -277,6 +277,9 @@ def build_model_mha_sam():
         out_l = trajectory_decoder_0(z_l)
         out_l = trajectory_decoder_1(out_l)
         outs.append(out_l)
+
+    outs = tf.concat(outs, axis=1)
+    outs = [k.backend.reshape(outs, (-1, L, 12, 2))]
 
     # x = k.layers.Dense(200)(tf.concat(zls, axis=0))
     # out_prob = k.layers.Dense(L, activation='softmax')(x)
