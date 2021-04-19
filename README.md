@@ -53,6 +53,5 @@ python evaluate_model.py --mode="v1.0-mini" --preprocessed_dataset_dir="/home/ba
 Parameters
  * `mode` is used to switch between `v1.0-mini` and `v1.0-trainval` versions (mini or big set).
  * `preprocessed_dataset_dir` is set to the path of the training files (generated in step `#2`).
- * `model_path` this is set to either a dir containing several models (at least 1 model) or the path to a specific model file. \
-For a dir, each model existing is being evaluated nad the minimum errors are reported. For a single file, the passed model error is reported.  
+ * `model_path` this is set to either a dir containing several models (at least 1 model) or the path to a specific model file. For a dir, each model existing is being evaluated and the minimum errors are reported. For a single file, the passed model error is reported.  
 
